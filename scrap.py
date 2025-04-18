@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
+import threading
 import asyncio
 
 # --- Web Scraping Function (remains the same) ---
@@ -29,7 +30,7 @@ def scrape_medical_data(url):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred during scraping: {e}")
 
-# --- Pydantic Model for Request Body (Optional but Recommended) ---
+# --- Pydantic Model for Request Body ---
 class ScrapingRequest(BaseModel):
     url: str
 
@@ -43,6 +44,15 @@ async def scrape_data_endpoint(request: ScrapingRequest):
     """
     data = scrape_medical_data(request.url)
     return JSONResponse(content=data)
+
+# --- Function to run FastAPI in a separate thread ---
+def run_fastapi_in_thread():
+    async def run():
+        config = uvicorn.Config(app, host="0.0.0.0", port=8000)
+        server = uvicorn.Server(config)
+        await server.serve()
+
+    asyncio.run(run())
 
 # --- Streamlit Integration ---
 def main():
@@ -67,13 +77,9 @@ def main():
             st.warning("Please enter a URL.")
 
 if __name__ == "__main__":
-    # Run FastAPI in the background using asyncio
-    async def run_fastapi():
-        config = uvicorn.Config(app, host="0.0.0.0", port=8000)
-        server = uvicorn.Server(config)
-        await server.serve()
-
-    asyncio.create_task(run_fastapi())
+    # Start FastAPI in a separate thread
+    fastapi_thread = threading.Thread(target=run_fastapi_in_thread, daemon=True)
+    fastapi_thread.start()
 
     # Run the Streamlit app
     main()
